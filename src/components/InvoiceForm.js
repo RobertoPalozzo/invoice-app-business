@@ -83,6 +83,55 @@ const inputClass = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm
 // Stati in cui una fattura si può modificare
 const EDITABLE_STATUSES = ["draft", "sent"];
 
+// ---------------------------------------------------------------------
+// TimeSelect — scelta dell'orario con due menu: ore e minuti a passi di 5.
+// Sostituisce <input type="time">, che su iPad/iPhone mostra tutti i
+// minuti (0–59) ignorando il passo. Il valore resta "HH:MM" (es. "10:05").
+// ---------------------------------------------------------------------
+const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0")); // "00".."23"
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0")); // "00","05".."55"
+
+function TimeSelect({ value, onChange }) {
+  const [hour = "", minute = ""] = value ? value.slice(0, 5).split(":") : [];
+  // un vecchio orario non multiplo di 5 (es. 10:07) resta selezionabile
+  const minuteOptions = minute && !MINUTES.includes(minute) ? [...MINUTES, minute].sort() : MINUTES;
+  const selectClass = "rounded-md border border-gray-300 px-2 py-1.5 text-sm";
+
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        aria-label="Hour"
+        value={hour}
+        // scegliendo l'ora senza minuti, i minuti partono da "00"; "--" svuota l'orario
+        onChange={(e) => onChange(e.target.value ? `${e.target.value}:${minute || "00"}` : "")}
+        className={selectClass}
+      >
+        <option value="">--</option>
+        {HOURS.map((h) => (
+          <option key={h} value={h}>
+            {h}
+          </option>
+        ))}
+      </select>
+      <span className="text-gray-500">:</span>
+      <select
+        aria-label="Minutes"
+        value={minute}
+        disabled={!hour}
+        onChange={(e) => onChange(`${hour}:${e.target.value}`)}
+        className={`${selectClass} disabled:bg-gray-100`}
+      >
+        {!hour && <option value="">--</option>}
+        {minuteOptions.map((m) => (
+          <option key={m} value={m}>
+            {m}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function InvoiceForm({ invoiceId = null }) {
   const router = useRouter();
   const isEdit = invoiceId !== null; // true = modifica, false = nuova fattura
@@ -778,14 +827,14 @@ export default function InvoiceForm({ invoiceId = null }) {
 
               {line.item_type === "service" && (
                 <>
-                  <label className="block sm:col-span-2">
+                  <div className="block sm:col-span-2">
                     <span className="text-xs text-gray-600">Start time</span>
-                    <input type="time" value={line.start_time} onChange={(e) => handleTimeChange(line, "start_time", e.target.value)} className={inputClass} />
-                  </label>
-                  <label className="block sm:col-span-2">
+                    <TimeSelect value={line.start_time} onChange={(value) => handleTimeChange(line, "start_time", value)} />
+                  </div>
+                  <div className="block sm:col-span-2">
                     <span className="text-xs text-gray-600">End time</span>
-                    <input type="time" value={line.end_time} onChange={(e) => handleTimeChange(line, "end_time", e.target.value)} className={inputClass} />
-                  </label>
+                    <TimeSelect value={line.end_time} onChange={(value) => handleTimeChange(line, "end_time", value)} />
+                  </div>
                 </>
               )}
 

@@ -12,6 +12,7 @@
 // =====================================================================
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { DEFAULT_PDF_FILE_NAME, PDF_NAME_PLACEHOLDERS, invoiceFileBaseName } from "@/lib/invoicePdf";
 
 const inputClass = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
 
@@ -33,7 +34,12 @@ const EMPTY = {
   gst_rate: "10",
   first_invoice_number: "1",
   first_invoice_year: "",
+  pdf_file_name: DEFAULT_PDF_FILE_NAME,
 };
+
+// Fattura e cliente di esempio per l'anteprima del nome del PDF
+const SAMPLE_INVOICE = { invoice_number: "54/2026", sequence_number: 54, year: 2026, issue_date: "2026-09-26" };
+const SAMPLE_CLIENT = { client_code: "CLI003", contact_name: "Example Client" };
 
 export default function SettingsPage() {
   const [form, setForm] = useState(EMPTY);
@@ -120,6 +126,7 @@ export default function SettingsPage() {
       gst_rate: rate || 10,
       first_invoice_number: firstNumber,
       first_invoice_year: form.first_invoice_year ? Number(form.first_invoice_year) : null,
+      pdf_file_name: form.pdf_file_name.trim() || DEFAULT_PDF_FILE_NAME,
     });
     setSaving(false);
 
@@ -204,6 +211,48 @@ export default function SettingsPage() {
             .
           </p>
         )}
+      </section>
+
+      {/* Nome del file PDF: formato con segnaposto e anteprima dal vivo */}
+      <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="font-medium text-gray-900">PDF file name</h2>
+        <p className="text-sm text-gray-500">
+          The name of the PDF when an invoice is shared, downloaded or saved. Write any text and use these
+          placeholders to insert the invoice details:
+        </p>
+        <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          {Object.entries(PDF_NAME_PLACEHOLDERS).map(([placeholder, meaning]) => (
+            <li key={placeholder}>
+              {/* toccando un segnaposto lo si aggiunge in fondo al formato */}
+              <button
+                type="button"
+                onClick={() => setField("pdf_file_name", form.pdf_file_name + placeholder)}
+                className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 hover:bg-gray-200"
+              >
+                {placeholder}
+              </button>{" "}
+              <span className="text-gray-500">{meaning}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-64 flex-1">
+            {field("pdf_file_name", "Format")}
+          </div>
+          <button
+            type="button"
+            onClick={() => setField("pdf_file_name", DEFAULT_PDF_FILE_NAME)}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            Reset
+          </button>
+        </div>
+        <p className="text-sm text-gray-700">
+          Example:{" "}
+          <strong className="break-all font-mono">
+            {invoiceFileBaseName(form, SAMPLE_INVOICE, SAMPLE_CLIENT)}.pdf
+          </strong>
+        </p>
       </section>
 
       {message && (

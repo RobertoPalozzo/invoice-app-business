@@ -6,14 +6,18 @@
 // sta dentro "[id]", quindi l'id arriva sempre da useParams.
 //
 // Impaginazione copiata dalle fatture reali (formato A4).
-// Il pulsante "Print / Save as PDF" apre la finestra di stampa del
-// browser: scegliendo "Salva come PDF" si ottiene il file da inviare.
+// Tre modi per ottenere il PDF:
+//   - "Share PDF": crea il file e apre il menu Condividi del telefono/iPad
+//     (Mail, Gmail, Salva su File, WhatsApp...) con il PDF già allegato
+//   - "Download PDF": scarica il file (comodo sul computer)
+//   - "Print": la finestra di stampa del browser
 // Le classi "print:hidden" nascondono menu e pulsanti nella stampa.
 // =====================================================================
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { invoiceFileBaseName, makeInvoicePdf } from "@/lib/invoicePdf";
 import {
   formatCurrency,
   formatDate,
@@ -32,6 +36,13 @@ export default function InvoicePrintPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState(null);
+
+  // Il file PDF, preparato in anticipo appena i dati sono pronti.
+  // Va creato PRIMA del tocco sul pulsante: su iPhone/iPad il menu
+  // Condividi si apre solo se parte subito dal tocco dell'utente.
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfError, setPdfError] = useState(null);
+  const [shareMessage, setShareMessage] = useState(null);
 
   // Carica i dati quando la pagina si apre o cambia l'id
   useEffect(() => {
@@ -89,15 +100,71 @@ export default function InvoicePrintPage() {
   }, [id]);
 
   // Secondo useEffect: il titolo della scheda diventa il nome proposto
-  // per il PDF, es. "Invoice_1-26_CLI001"
+  // quando si usa "Print → Salva come PDF", es. "Acala_Inv_54-2026_CLI003"
   useEffect(() => {
     if (invoice && client) {
-      document.title = `Invoice_${invoice.invoice_number.replace("/", "-")}_${client.client_code}`;
+      document.title = invoiceFileBaseName(settings, invoice, client);
     }
     return () => {
       document.title = "Invoice App";
     };
-  }, [invoice, client]);
+  }, [settings, invoice, client]);
+
+  // Terzo useEffect: quando i dati sono pronti, genera il PDF
+  useEffect(() => {
+    if (!invoice || !client) return;
+    let cancelled = false; // evita aggiornamenti se si cambia pagina nel frattempo
+
+    async function preparePdf() {
+      try {
+        const file = await makeInvoicePdf({ settings, invoice, client, items });
+        if (!cancelled) setPdfFile(file);
+      } catch (err) {
+        if (!cancelled) setPdfError(err.message);
+      }
+    }
+    preparePdf();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [settings, invoice, client, items]);
+
+  // Apre il menu Condividi di iOS/Android con il PDF allegato.
+  // Se il browser non lo permette (es. alcuni computer), scarica il file.
+  async function sharePdf() {
+    setShareMessage(null);
+    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      try {
+        await navigator.share({
+          files: [pdfFile],
+          title: `Invoice ${invoice.invoice_number}`,
+          text:
+            `Hi,\n\nplease find attached invoice ${invoice.invoice_number}` +
+            (invoice.period_title ? ` – ${invoice.period_title}` : "") +
+            `.\n\nKind regards,\n${settings?.owner_name ?? ""}`,
+        });
+      } catch (err) {
+        // AbortError = l'utente ha chiuso il menu: non è un errore
+        if (err.name !== "AbortError") setShareMessage(`Could not share: ${err.message}`);
+      }
+    } else {
+      downloadPdf();
+      setShareMessage("Sharing is not available in this browser, so the PDF was downloaded instead.");
+    }
+  }
+
+  // Scarica il PDF con il suo nome (es. Invoice_54-2026_CLI003.pdf)
+  function downloadPdf() {
+    const url = URL.createObjectURL(pdfFile);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = pdfFile.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
 
   if (loading) return <p className="text-gray-500">Loading invoice...</p>;
 
@@ -122,19 +189,38 @@ export default function InvoicePrintPage() {
   return (
     <div className="space-y-4">
       {/* Barra degli strumenti: visibile solo a schermo */}
-      <div className="flex items-center gap-2 print:hidden">
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Link
           href={`/invoices/${invoice.id}`}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
         >
           ← Back to invoice
         </Link>
-        <button
-          onClick={() => window.print()}
-          className="ml-auto rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
-        >
-          Print / Save as PDF
-        </button>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {/* finché il PDF non è pronto, i pulsanti mostrano "Preparing PDF..." */}
+          <button
+            onClick={sharePdf}
+            disabled={!pdfFile}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {pdfFile ? "Share PDF / Email" : "Preparing PDF..."}
+          </button>
+          <button
+            onClick={downloadPdf}
+            disabled={!pdfFile}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Download PDF
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+          >
+            Print
+          </button>
+        </div>
+        {pdfError && <p className="w-full text-sm text-red-600">Could not create the PDF: {pdfError}</p>}
+        {shareMessage && <p className="w-full text-sm text-gray-600">{shareMessage}</p>}
       </div>
 
       {/* Il "foglio" A4. Il contenitore esterno permette lo scorrimento

@@ -42,7 +42,9 @@ create table settings (
   -- numero di partenza: "nel first_invoice_year parti almeno da first_invoice_number"
   -- (serve quando l'app si comincia a usare a metà anno)
   first_invoice_number int not null default 1 check (first_invoice_number >= 1),
-  first_invoice_year   int
+  first_invoice_year   int,
+  -- formato del nome dei PDF, con segnaposto (vedi Settings nell'app)
+  pdf_file_name        text not null default '{surname}_Inv_{number}_{client}'
 );
 
 

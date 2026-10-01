@@ -12,15 +12,14 @@ export function formatCurrency(value) {
   }).format(Number(value ?? 0));
 }
 
+// Abbreviazioni fisse: il browser in en-AU scriverebbe "Sept" per settembre
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 // "2026-09-26" → "26-Sep-26" (stesso formato delle fatture attuali)
 export function formatDate(isoDate) {
   if (!isoDate) return "";
-  // T00:00 evita che il fuso orario sposti la data al giorno prima
-  const date = new Date(`${isoDate}T00:00:00`);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = date.toLocaleString("en-AU", { month: "short" });
-  const year = String(date.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
+  const [year, month, day] = isoDate.split("-");
+  return `${day}-${MONTHS[Number(month) - 1]}-${year.slice(-2)}`;
 }
 
 // "2026-09-22" → "22.09" (formato breve usato nelle righe della fattura)
