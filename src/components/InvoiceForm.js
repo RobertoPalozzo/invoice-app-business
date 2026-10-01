@@ -25,7 +25,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { formatCurrency, formatDayMonth, formatTime } from "@/lib/format";
+import { formatCurrency, formatDate, formatDayMonth, formatTime } from "@/lib/format";
 import {
   addDays,
   buildPeriodTitle,
@@ -288,6 +288,23 @@ export default function InvoiceForm({ invoiceId = null }) {
   });
   const hasOverlaps = Object.keys(overlapWarnings).length > 0;
 
+  // Le righe sono inserite nell'ordine in cui i clienti sono stati serviti:
+  // la data di una riga non può essere precedente a quella della riga sopra.
+  // Le righe NON vengono spostate: si segnala soltanto l'errore.
+  // Risultato: { chiaveRiga: "Date is earlier than line 5 (30-Sep-26)" }
+  const dateOrderWarnings = {};
+  let previousDate = null;
+  let previousNumber = null;
+  lines.forEach((line, i) => {
+    if (!line.service_date) return; // righe senza data: nessun confronto
+    if (previousDate && line.service_date < previousDate) {
+      dateOrderWarnings[line.key] = `Date is earlier than line ${previousNumber} (${formatDate(previousDate)}). Check the date or the order of the lines.`;
+    }
+    previousDate = line.service_date;
+    previousNumber = i + 1;
+  });
+  const hasDateOrderErrors = Object.keys(dateOrderWarnings).length > 0;
+
   // ---------- Gestione delle date ----------
   function handleIssueDateChange(value) {
     setIssueDate(value);
@@ -448,6 +465,7 @@ export default function InvoiceForm({ invoiceId = null }) {
         return `Line ${n}: the end time must be after the start time.`;
     }
     if (hasOverlaps) return "Some lines overlap in time on the same day. Fix the times marked in red.";
+    if (hasDateOrderErrors) return "Some dates are earlier than the line above. Fix the dates marked in red.";
     return null;
   }
 
@@ -887,6 +905,12 @@ export default function InvoiceForm({ invoiceId = null }) {
                 })()}
 
               {/* Avviso immediato se l'orario si sovrappone a un'altra riga */}
+              {dateOrderWarnings[line.key] && (
+                <p className="rounded-md bg-red-50 px-3 py-1.5 text-sm text-red-700 sm:col-span-6">
+                  ⚠ {dateOrderWarnings[line.key]}
+                </p>
+              )}
+
               {overlapWarnings[line.key] && (
                 <p className="rounded-md bg-red-50 px-3 py-1.5 text-sm text-red-700 sm:col-span-6">
                   ⚠ {overlapWarnings[line.key].join(" · ")}
