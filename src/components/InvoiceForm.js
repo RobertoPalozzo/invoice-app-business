@@ -80,6 +80,9 @@ function itemToLine(item, shiftDays = 0) {
 // Stile comune dei campi del form
 const inputClass = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-500";
 
+// "Km", "km", "KM" → servizio chilometrico (non conta maiuscole/minuscole)
+const isKm = (unit) => (unit ?? "").trim().toLowerCase() === "km";
+
 // Stati in cui una fattura si può modificare
 const EDITABLE_STATUSES = ["draft", "sent"];
 
@@ -772,7 +775,7 @@ export default function InvoiceForm({ invoiceId = null }) {
           // quelli disattivati compaiono solo se la riga li usa già
           const serviceOptions = services.filter(
             (s) =>
-              (line.item_type === "mileage" ? s.unit === "Km" : s.unit !== "Km") &&
+              (line.item_type === "mileage" ? isKm(s.unit) : !isKm(s.unit)) &&
               (s.active || String(s.id) === line.service_id)
           );
           return (
@@ -859,7 +862,7 @@ export default function InvoiceForm({ invoiceId = null }) {
               )}
 
               <label className="block">
-                <span className="text-xs text-gray-600">{line.unit === "Km" ? "Km" : line.unit === "hours" ? "Hours" : "Qty"}</span>
+                <span className="text-xs text-gray-600">{isKm(line.unit) ? "Km" : line.unit === "hours" ? "Hours" : "Qty"}</span>
                 <input type="number" step="0.1" min="0" value={line.quantity} onChange={(e) => updateLine(line.key, { quantity: e.target.value })} className={inputClass} />
               </label>
 

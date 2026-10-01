@@ -238,7 +238,7 @@ export default function ServicesPage() {
                     >
                       <option value="">None</option>
                       {services
-                        .filter((s) => s.id !== service.id && s.unit === serviceDraft.unit)
+                        .filter((s) => s.id !== service.id && s.unit.trim().toLowerCase() === serviceDraft.unit.trim().toLowerCase())
                         .map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.description} ({formatCurrency(s.default_rate)})

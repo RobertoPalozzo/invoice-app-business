@@ -24,6 +24,7 @@ import {
   formatDayMonth,
   formatQuantity,
   formatTime,
+  withFullStop,
 } from "@/lib/format";
 
 export default function InvoicePrintPage() {
@@ -310,7 +311,7 @@ export default function InvoicePrintPage() {
                       {formatDayMonth(item.service_date)} {item.route}
                     </p>
                   )}
-                  <p>{item.description}.</p>
+                  <p>{withFullStop(item.description)}</p>
                   {item.start_time && (
                     <p>
                       Time: {formatTime(item.start_time)} to {formatTime(item.end_time)}

@@ -39,6 +39,12 @@ export function formatQuantity(value) {
   return Number(value ?? 0).toFixed(1);
 }
 
+// "Weekday" → "Weekday." ma "Weekday." resta "Weekday." (niente doppio punto)
+export function withFullStop(text) {
+  const t = (text ?? "").trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
 // Colori dei badge per lo stato della fattura
 export const STATUS_STYLES = {
   draft: "bg-gray-100 text-gray-700",
