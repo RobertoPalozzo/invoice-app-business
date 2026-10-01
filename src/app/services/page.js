@@ -40,6 +40,7 @@ export default function ServicesPage() {
   const [rateDraft, setRateDraft] = useState("");
 
   const [message, setMessage] = useState(null); // { type, text }
+  const [showInactive, setShowInactive] = useState(false); // mostra anche i servizi disattivati
 
   // Carica tutto ciò che serve alla pagina
   async function loadAll() {
@@ -138,6 +139,34 @@ export default function ServicesPage() {
     loadAll();
   }
 
+  // Cancella un servizio che non serve più (DELETE).
+  // Se è già usato in qualche fattura il database lo impedisce
+  // (chiave esterna "on delete restrict"): in quel caso si disattiva.
+  // Le sue tariffe personalizzate si cancellano insieme (on delete cascade)
+  // e i collegamenti "Weekend version" che puntavano a lui si svuotano.
+  async function deleteService(service) {
+    const ok = window.confirm(
+      `Delete "${service.description}"?\n\nIts custom rates will be removed too. This cannot be undone.`
+    );
+    if (!ok) return;
+
+    const { error } = await supabase.from("services").delete().eq("id", service.id);
+    if (error) {
+      // 23503 = violazione di chiave esterna: il servizio compare in qualche fattura
+      if (error.code === "23503") {
+        setMessage({
+          type: "error",
+          text: `"${service.description}" is used in existing invoices, so it can't be deleted. Use Deactivate instead: it disappears from new invoices but old ones stay correct.`,
+        });
+      } else {
+        showError(error);
+      }
+      return;
+    }
+    setMessage({ type: "ok", text: `"${service.description}" deleted.` });
+    loadAll();
+  }
+
   // ================= CUSTOM RATES =================
 
   async function addRate(event) {
@@ -204,7 +233,13 @@ export default function ServicesPage() {
 
       {/* ================= SERVICES ================= */}
       <section className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <h2 className="border-b border-gray-200 px-4 py-3 font-medium text-gray-900">Services</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+          <h2 className="font-medium text-gray-900">Services</h2>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+            Show inactive ({services.filter((s) => !s.active).length})
+          </label>
+        </div>
         <table className="w-full text-sm">
           <thead className="text-left text-gray-500">
             <tr>
@@ -217,7 +252,7 @@ export default function ServicesPage() {
             </tr>
           </thead>
           <tbody>
-            {services.map((service) =>
+            {services.filter((s) => showInactive || s.active || s.id === editingServiceId).map((service) =>
               editingServiceId === service.id ? (
                 <tr key={service.id} className="border-t border-gray-100 bg-yellow-50">
                   <td className="px-4 py-2">
@@ -263,8 +298,14 @@ export default function ServicesPage() {
                   <td className="px-4 py-2">{service.active ? "Active" : "Inactive"}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button onClick={() => startEditService(service)} className={`${smallButton} mr-1`}>Edit</button>
-                    <button onClick={() => toggleService(service)} className={smallButton}>
+                    <button onClick={() => toggleService(service)} className={`${smallButton} mr-1`}>
                       {service.active ? "Deactivate" : "Activate"}
+                    </button>
+                    <button
+                      onClick={() => deleteService(service)}
+                      className="rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>
