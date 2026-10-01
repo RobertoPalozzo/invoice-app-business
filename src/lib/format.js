@@ -45,6 +45,23 @@ export function withFullStop(text) {
   return /[.!?]$/.test(t) ? t : `${t}.`;
 }
 
+// Prima riga (in grassetto) di ogni voce della fattura, sempre con lo stesso schema:
+//   servizio: "29.09 – Mariana Cruz - 7 Sandford Court, ..."
+//   km:       "30.09 – From home at 17 Avondale Rd to ..."
+//   altro / servizio senza assistito: solo "29.09"
+// Restituisce "" se non c'è niente da mostrare.
+export function lineHeading(item) {
+  const date = formatDayMonth(item.service_date);
+  let detail = "";
+  if (item.item_type === "service" && item.care_recipients) {
+    detail = `${item.care_recipients.full_name} - ${item.care_recipients.address}`;
+  } else if (item.item_type === "mileage" && item.route) {
+    detail = item.route.trim();
+  }
+  if (date && detail) return `${date} – ${detail}`;
+  return date || detail;
+}
+
 // Colori dei badge per lo stato della fattura
 export const STATUS_STYLES = {
   draft: "bg-gray-100 text-gray-700",

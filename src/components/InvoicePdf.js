@@ -9,7 +9,7 @@
 // Le misure sono in punti tipografici (pt): 1 mm ≈ 2,83 pt.
 // =====================================================================
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
-import { formatCurrency, formatDate, formatDayMonth, formatQuantity, formatTime, withFullStop } from "@/lib/format";
+import { formatCurrency, formatDate, formatQuantity, formatTime, lineHeading, withFullStop } from "@/lib/format";
 
 const DARK = "#1f2937";
 const GREY = "#4b5563";
@@ -110,16 +110,8 @@ export default function InvoicePdf({ settings, invoice, client, items }) {
         {items.map((item) => (
           <View key={item.id} style={styles.row} wrap={false}>
             <View style={styles.colDesc}>
-              {item.item_type === "service" && item.care_recipients ? (
-                <Text style={styles.bold}>
-                  {formatDayMonth(item.service_date)} – {item.care_recipients.full_name} - {item.care_recipients.address}
-                </Text>
-              ) : null}
-              {item.item_type === "mileage" && item.route ? (
-                <Text>
-                  {formatDayMonth(item.service_date)} {item.route}
-                </Text>
-              ) : null}
+              {/* prima riga in grassetto, stesso schema della pagina di stampa */}
+              {lineHeading(item) ? <Text style={styles.bold}>{lineHeading(item)}</Text> : null}
               <Text>{withFullStop(item.description)}</Text>
               {item.start_time ? (
                 <Text>

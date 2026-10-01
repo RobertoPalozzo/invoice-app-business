@@ -21,7 +21,7 @@ import { invoiceFileBaseName, makeInvoicePdf } from "@/lib/invoicePdf";
 import {
   formatCurrency,
   formatDate,
-  formatDayMonth,
+  lineHeading,
   formatQuantity,
   formatTime,
   withFullStop,
@@ -299,18 +299,8 @@ export default function InvoicePrintPage() {
             {items.map((item) => (
               <tr key={item.id} className="break-inside-avoid border-b border-gray-200 align-top">
                 <td className="px-2 py-2">
-                  {/* "22.09 – Nome - Indirizzo" come nelle fatture reali */}
-                  {item.care_recipients && item.item_type === "service" && (
-                    <p className="font-semibold">
-                      {formatDayMonth(item.service_date)} – {item.care_recipients.full_name} -{" "}
-                      {item.care_recipients.address}
-                    </p>
-                  )}
-                  {item.item_type === "mileage" && item.route && (
-                    <p>
-                      {formatDayMonth(item.service_date)} {item.route}
-                    </p>
-                  )}
+                  {/* prima riga in grassetto: "22.09 – Nome - Indirizzo" o "22.09 – percorso km" */}
+                  {lineHeading(item) && <p className="font-semibold">{lineHeading(item)}</p>}
                   <p>{withFullStop(item.description)}</p>
                   {item.start_time && (
                     <p>
