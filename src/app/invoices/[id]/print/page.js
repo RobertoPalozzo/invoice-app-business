@@ -174,7 +174,8 @@ export default function InvoicePrintPage() {
         await navigator.share({
           files: [pdfFile],
           title: `Invoice ${invoice.invoice_number}`,
-          text: emailText(),
+          // \r\n: alcune app (es. Gmail su iPad) gestiscono meglio questo "a capo"
+          text: emailText().replace(/\n/g, "\r\n"),
         });
       } catch (err) {
         // AbortError = l'utente ha chiuso il menu: non è un errore
@@ -184,6 +185,16 @@ export default function InvoicePrintPage() {
       downloadPdf();
       setShareMessage("Sharing is not available in this browser, so the PDF was downloaded instead.");
     }
+  }
+
+  // Gmail su iPad mette il testo condiviso tutto su una riga:
+  // copiando il messaggio e incollandolo, gli "a capo" restano.
+  function handleCopyMessage() {
+    if (!navigator.clipboard) return;
+    navigator.clipboard
+      .writeText(emailText())
+      .then(() => setShareMessage("Message copied — paste it in the body of the email."))
+      .catch(() => setShareMessage("Could not copy the message."));
   }
 
   function handleCopyEmail() {
@@ -268,6 +279,13 @@ export default function InvoicePrintPage() {
           ) : (
             <span className="italic">no email saved for this client</span>
           )}
+        </p>
+        <p className="w-full text-sm text-gray-600">
+          Message:{" "}
+          <button onClick={handleCopyMessage} className="text-blue-600 hover:underline">
+            Copy message
+          </button>{" "}
+          <span className="text-xs text-gray-500">(use it if the text arrives on one line, e.g. in Gmail)</span>
         </p>
         {pdfError && <p className="w-full text-sm text-red-600">Could not create the PDF: {pdfError}</p>}
         {shareMessage && <p className="w-full text-sm text-gray-600">{shareMessage}</p>}
