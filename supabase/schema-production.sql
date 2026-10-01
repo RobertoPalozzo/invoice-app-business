@@ -280,3 +280,26 @@ create policy "Authenticated users only" on invoice_items   for all to authentic
 -- la funzione è eseguibile solo da utenti loggati
 revoke execute on function get_rate(bigint, bigint) from public, anon;
 grant  execute on function get_rate(bigint, bigint) to authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- PERMESSI ESPLICITI (Data API)
+-- Il progetto è creato con "Automatically expose new tables" DISATTIVATO:
+-- nessuna tabella è accessibile finché non lo diciamo qui.
+-- I permessi vanno SOLO a "authenticated" (utenti con login), mai ad
+-- "anon" (chi non ha fatto login). Le regole RLS restano il secondo
+-- livello di protezione.
+-- ---------------------------------------------------------------------
+grant usage on schema public to authenticated;
+
+grant select, insert, update, delete on
+  settings, clients, care_recipients, services, rates, invoices, invoice_items
+  to authenticated;
+
+-- la vista dei totali si può solo leggere
+grant select on invoice_totals to authenticated;
+
+-- per sicurezza: gli anonimi non hanno alcun accesso
+revoke all on
+  settings, clients, care_recipients, services, rates, invoices, invoice_items, invoice_totals
+  from anon;
