@@ -133,17 +133,48 @@ export default function InvoicePrintPage() {
 
   // Apre il menu Condividi di iOS/Android con il PDF allegato.
   // Se il browser non lo permette (es. alcuni computer), scarica il file.
+  // Testo dell'email. Il periodo "SEPTEMBER 2026 (for the week ...)" va a capo
+  // prima della parentesi, così il messaggio resta leggibile.
+  function emailText() {
+    const period = (invoice.period_title ?? "").trim();
+    const cut = period.indexOf(" (");
+    const periodLines = !period
+      ? ""
+      : cut > 0
+      ? ` - ${period.slice(0, cut)}\n${period.slice(cut + 1)}`
+      : ` - ${period}`;
+    const signature = [
+      settings?.owner_name,
+      settings?.phone && `Mobile: ${settings.phone}`,
+      settings?.email && `Email: ${settings.email}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    return (
+      `Hi,\nplease find attached invoice ${invoice.invoice_number}${periodLines}` +
+      `${periodLines.endsWith(".") ? "" : "."}\n\nKind regards,\n\n${signature}`
+    );
+  }
+
+  // Il menu Condividi non permette di indicare il destinatario:
+  // copiamo l'email del cliente negli appunti, da incollare nel campo "A:".
+  function copyClientEmail() {
+    if (!client?.email || !navigator.clipboard) return false;
+    navigator.clipboard.writeText(client.email).catch(() => {});
+    return true;
+  }
+
   async function sharePdf() {
     setShareMessage(null);
     if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      // niente "await" prima di share(): Safari vuole share() subito dopo il tocco
+      const copied = copyClientEmail();
+      if (copied) setShareMessage(`${client.email} copied — paste it in the "To" field of the email.`);
       try {
         await navigator.share({
           files: [pdfFile],
           title: `Invoice ${invoice.invoice_number}`,
-          text:
-            `Hi,\n\nplease find attached invoice ${invoice.invoice_number}` +
-            (invoice.period_title ? ` – ${invoice.period_title}` : "") +
-            `.\n\nKind regards,\n${settings?.owner_name ?? ""}`,
+          text: emailText(),
         });
       } catch (err) {
         // AbortError = l'utente ha chiuso il menu: non è un errore
@@ -153,6 +184,10 @@ export default function InvoicePrintPage() {
       downloadPdf();
       setShareMessage("Sharing is not available in this browser, so the PDF was downloaded instead.");
     }
+  }
+
+  function handleCopyEmail() {
+    if (copyClientEmail()) setShareMessage(`${client.email} copied.`);
   }
 
   // Scarica il PDF con il suo nome (es. Invoice_54-2026_CLI003.pdf)
@@ -220,6 +255,20 @@ export default function InvoicePrintPage() {
             Print
           </button>
         </div>
+        {/* destinatario: l'email del cliente, con pulsante per copiarla */}
+        <p className="w-full text-sm text-gray-600">
+          To:{" "}
+          {client?.email ? (
+            <>
+              <span className="font-medium text-gray-900">{client.email}</span>{" "}
+              <button onClick={handleCopyEmail} className="ml-1 text-blue-600 hover:underline">
+                Copy
+              </button>
+            </>
+          ) : (
+            <span className="italic">no email saved for this client</span>
+          )}
+        </p>
         {pdfError && <p className="w-full text-sm text-red-600">Could not create the PDF: {pdfError}</p>}
         {shareMessage && <p className="w-full text-sm text-gray-600">{shareMessage}</p>}
       </div>
