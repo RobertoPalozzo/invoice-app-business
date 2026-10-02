@@ -156,6 +156,14 @@ export default function InvoicePrintPage() {
     );
   }
 
+  // Oggetto dell'email, es. "Invoice 54/2026 - SEPTEMBER 2026"
+  function emailSubject() {
+    const period = (invoice.period_title ?? "").trim();
+    const cut = period.indexOf(" (");
+    const month = cut > 0 ? period.slice(0, cut) : period;
+    return `Invoice ${invoice.invoice_number}${month ? ` - ${month}` : ""}`;
+  }
+
   // Il menu Condividi non permette di indicare il destinatario:
   // copiamo l'email del cliente negli appunti, da incollare nel campo "A:".
   function copyClientEmail() {
@@ -173,9 +181,10 @@ export default function InvoicePrintPage() {
       try {
         await navigator.share({
           files: [pdfFile],
-          title: `Invoice ${invoice.invoice_number}`,
-          // \r\n: alcune app (es. Gmail su iPad) gestiscono meglio questo "a capo"
-          text: emailText().replace(/\n/g, "\r\n"),
+          // "title" è l'oggetto dell'email (Mail lo usa come Subject).
+          // Il testo usa i normali "a capo" (\n): con \r\n l'oggetto spariva.
+          title: emailSubject(),
+          text: emailText(),
         });
       } catch (err) {
         // AbortError = l'utente ha chiuso il menu: non è un errore
