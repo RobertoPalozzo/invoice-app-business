@@ -131,8 +131,6 @@ export default function InvoicePrintPage() {
     };
   }, [settings, invoice, client, items]);
 
-  // Apre il menu Condividi di iOS/Android con il PDF allegato.
-  // Se il browser non lo permette (es. alcuni computer), scarica il file.
   // Testo dell'email. Il periodo "SEPTEMBER 2026 (for the week ...)" va a capo
   // prima della parentesi, così il messaggio resta leggibile.
   function emailText() {
@@ -156,34 +154,15 @@ export default function InvoicePrintPage() {
     );
   }
 
-  // Oggetto dell'email, es. "Invoice 54/2026 - SEPTEMBER 2026"
-  function emailSubject() {
-    const period = (invoice.period_title ?? "").trim();
-    const cut = period.indexOf(" (");
-    const month = cut > 0 ? period.slice(0, cut) : period;
-    return `Invoice ${invoice.invoice_number}${month ? ` - ${month}` : ""}`;
-  }
-
-  // Il menu Condividi non permette di indicare il destinatario:
-  // copiamo l'email del cliente negli appunti, da incollare nel campo "A:".
-  function copyClientEmail() {
-    if (!client?.email || !navigator.clipboard) return false;
-    navigator.clipboard.writeText(client.email).catch(() => {});
-    return true;
-  }
-
+  // Apre il menu Condividi di iOS/Android con il PDF allegato.
+  // Se il browser non lo permette (es. alcuni computer), scarica il file.
   async function sharePdf() {
     setShareMessage(null);
     if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-      // niente "await" prima di share(): Safari vuole share() subito dopo il tocco
-      const copied = copyClientEmail();
-      if (copied) setShareMessage(`${client.email} copied — paste it in the "To" field of the email.`);
       try {
         await navigator.share({
           files: [pdfFile],
-          // "title" è l'oggetto dell'email (Mail lo usa come Subject).
-          // Il testo usa i normali "a capo" (\n): con \r\n l'oggetto spariva.
-          title: emailSubject(),
+          title: `Invoice ${invoice.invoice_number}`,
           text: emailText(),
         });
       } catch (err) {
@@ -194,20 +173,6 @@ export default function InvoicePrintPage() {
       downloadPdf();
       setShareMessage("Sharing is not available in this browser, so the PDF was downloaded instead.");
     }
-  }
-
-  // Gmail su iPad mette il testo condiviso tutto su una riga:
-  // copiando il messaggio e incollandolo, gli "a capo" restano.
-  function handleCopyMessage() {
-    if (!navigator.clipboard) return;
-    navigator.clipboard
-      .writeText(emailText())
-      .then(() => setShareMessage("Message copied — paste it in the body of the email."))
-      .catch(() => setShareMessage("Could not copy the message."));
-  }
-
-  function handleCopyEmail() {
-    if (copyClientEmail()) setShareMessage(`${client.email} copied.`);
   }
 
   // Scarica il PDF con il suo nome (es. Invoice_54-2026_CLI003.pdf)
@@ -275,27 +240,6 @@ export default function InvoicePrintPage() {
             Print
           </button>
         </div>
-        {/* destinatario: l'email del cliente, con pulsante per copiarla */}
-        <p className="w-full text-sm text-gray-600">
-          To:{" "}
-          {client?.email ? (
-            <>
-              <span className="font-medium text-gray-900">{client.email}</span>{" "}
-              <button onClick={handleCopyEmail} className="ml-1 text-blue-600 hover:underline">
-                Copy
-              </button>
-            </>
-          ) : (
-            <span className="italic">no email saved for this client</span>
-          )}
-        </p>
-        <p className="w-full text-sm text-gray-600">
-          Message:{" "}
-          <button onClick={handleCopyMessage} className="text-blue-600 hover:underline">
-            Copy message
-          </button>{" "}
-          <span className="text-xs text-gray-500">(use it if the text arrives on one line, e.g. in Gmail)</span>
-        </p>
         {pdfError && <p className="w-full text-sm text-red-600">Could not create the PDF: {pdfError}</p>}
         {shareMessage && <p className="w-full text-sm text-gray-600">{shareMessage}</p>}
       </div>
