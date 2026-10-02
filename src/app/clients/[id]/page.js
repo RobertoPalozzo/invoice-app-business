@@ -157,6 +157,7 @@ export default function ClientDetailPage() {
     setDraft({
       contact_name: client.contact_name ?? "",
       company: client.company ?? "",
+      contact_person: client.contact_person ?? "",
       address: client.address ?? "",
       phone: client.phone ?? "",
       email: client.email ?? "",
@@ -180,6 +181,7 @@ export default function ClientDetailPage() {
     const changes = {
       contact_name: draft.contact_name.trim(),
       company: client.client_type === "company" ? clean(draft.company) : null,
+      contact_person: client.client_type === "company" ? clean(draft.contact_person) : null,
       address: clean(draft.address),
       phone: clean(draft.phone),
       email: clean(draft.email),
@@ -338,6 +340,14 @@ export default function ClientDetailPage() {
 
           {client.client_type === "company" && (
             <label className="block">
+              <span className="text-sm font-medium text-gray-700">Contact person (optional, internal)</span>
+              <input value={draft.contact_person} onChange={(e) => setDraft({ ...draft, contact_person: e.target.value })} placeholder="e.g. William Saad" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+              <span className="text-xs text-gray-500">Internal reference only: never printed on the invoice.</span>
+            </label>
+          )}
+
+          {client.client_type === "company" && (
+            <label className="block">
               <span className="text-sm font-medium text-gray-700">Works for (optional, internal)</span>
               <input value={draft.company} onChange={(e) => setDraft({ ...draft, company: e.target.value })} placeholder="e.g. Stone Community Care Pty Ltd" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
               <span className="text-xs text-gray-500">Internal reference only: never printed on the invoice.</span>
@@ -397,6 +407,7 @@ export default function ClientDetailPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <section className={`rounded-lg border border-gray-200 bg-white p-4 ${editing ? "hidden" : ""}`}>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Contact details</h2>
+          {client.contact_person && <p className="text-sm text-gray-500">Contact person: {client.contact_person} (not printed)</p>}
           {client.company && <p className="text-sm text-gray-500">Works for: {client.company} (not printed)</p>}
           {client.address && <p className="text-gray-700">{client.address}</p>}
           {client.phone && <p className="text-gray-700">Phone: {client.phone}</p>}

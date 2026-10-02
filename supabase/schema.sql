@@ -54,6 +54,7 @@ create table clients (
                  check (client_type in ('company', 'private')),
   contact_name   text not null,                -- nome stampato in fattura
   company        text,                         -- vuoto per i privati
+  contact_person text,                         -- persona di riferimento (interno, non stampato)
   address        text,
   phone          text,
   email          text,

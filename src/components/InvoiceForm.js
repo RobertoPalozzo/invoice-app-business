@@ -715,7 +715,9 @@ export default function InvoiceForm({ invoiceId = null }) {
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.client_code} – {client.contact_name}
-                {client.company ? ` (${client.company})` : ""}
+                {client.contact_person || client.company
+                  ? ` (${[client.contact_person, client.company].filter(Boolean).join(" · ")})`
+                  : ""}
                 {client.client_type === "private" ? " · private" : ""}
                 {client.email && clients.some((c) => c.id !== client.id && c.contact_name.trim().toLowerCase() === client.contact_name.trim().toLowerCase())
                   ? ` · ${client.email}`

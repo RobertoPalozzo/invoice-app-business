@@ -18,6 +18,7 @@ const EMPTY_CLIENT = {
   client_type: "company",
   contact_name: "",
   company: "",
+  contact_person: "",
   address: "",
   phone: "",
   email: "",
@@ -86,6 +87,7 @@ export default function ClientsPage() {
         client_type: form.client_type,
         contact_name: form.contact_name.trim(),
         company: form.client_type === "company" ? clean(form.company) : null,
+        contact_person: form.client_type === "company" ? clean(form.contact_person) : null,
         address: clean(form.address),
         phone: clean(form.phone),
         email: clean(form.email),
@@ -148,6 +150,14 @@ export default function ClientsPage() {
             <input value={form.contact_name} onChange={(e) => setField("contact_name", e.target.value)} className={inputClass} />
             <span className="text-xs text-gray-500">First line under BILL TO on the invoice.</span>
           </label>
+
+          {form.client_type === "company" && (
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700">Contact person (optional, internal)</span>
+              <input value={form.contact_person} onChange={(e) => setField("contact_person", e.target.value)} placeholder="e.g. William Saad" className={inputClass} />
+              <span className="text-xs text-gray-500">Internal reference only: never printed on the invoice.</span>
+            </label>
+          )}
 
           {form.client_type === "company" && (
             <label className="block">
@@ -241,7 +251,11 @@ export default function ClientsPage() {
                         {client.contact_name}
                       </Link>
                       {!client.active && " (inactive)"}
-                      {client.company && <div className="text-xs text-gray-500">for {client.company}</div>}
+                      {(client.contact_person || client.company) && (
+                        <div className="text-xs text-gray-500">
+                          {[client.contact_person, client.company && `for ${client.company}`].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-2 text-gray-700">{client.email ?? "—"}</td>
                     <td className="px-4 py-2 text-gray-700">
