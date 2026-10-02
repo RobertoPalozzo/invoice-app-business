@@ -92,7 +92,6 @@ export default function InvoicePdf({ settings, invoice, client, items }) {
         <View style={{ marginTop: 22 }}>
           <Text style={[styles.darkLabel, { alignSelf: "flex-start", marginBottom: 3 }]}>BILL TO:</Text>
           <Text style={styles.bold}>{client.contact_name}</Text>
-          {client.company ? <Text>{client.company}</Text> : null}
           {client.address ? <Text>{client.address}</Text> : null}
           {client.phone ? <Text>Phone: {client.phone}</Text> : null}
           {client.email ? <Text>email: {client.email}</Text> : null}

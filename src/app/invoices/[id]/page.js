@@ -252,7 +252,7 @@ export default function InvoiceDetailPage() {
               {client.contact_name}
             </Link>
           </p>
-          {client.company && <p className="text-gray-700">{client.company}</p>}
+          {client.company && <p className="text-xs text-gray-500">Works for {client.company} (not printed)</p>}
           {client.address && <p className="text-gray-700">{client.address}</p>}
           {client.phone && <p className="text-gray-700">Phone: {client.phone}</p>}
           {client.email && <p className="text-gray-700">Email: {client.email}</p>}

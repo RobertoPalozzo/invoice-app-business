@@ -342,7 +342,6 @@ export default function InvoicePrintPage() {
         <section className="mt-8">
           <p className="mb-1 inline-block bg-gray-800 px-2 py-0.5 text-xs font-bold text-white">BILL TO:</p>
           <p className="font-semibold">{client.contact_name}</p>
-          {client.company && <p>{client.company}</p>}
           {client.address && <p>{client.address}</p>}
           {client.phone && <p>Phone: {client.phone}</p>}
           {client.email && <p>email: {client.email}</p>}

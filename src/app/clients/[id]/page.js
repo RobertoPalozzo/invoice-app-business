@@ -211,6 +211,16 @@ export default function ClientDetailPage() {
     setSaving(false);
   }
 
+  // Riattiva con un clic un cliente disattivato (per errore o dopo una pausa)
+  async function reactivateClient() {
+    const { data, error } = await supabase.from("clients").update({ active: true }).eq("id", id).select("*").single();
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    setClient(data);
+  }
+
   // ---------- Modifica di un assistito ----------
   function startEditingRecipient(recipient) {
     setEditingRecipientId(recipient.id);
@@ -292,7 +302,17 @@ export default function ClientDetailPage() {
           {client.client_type}
         </span>
         {!client.active && (
-          <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">inactive</span>
+          <>
+            <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">inactive</span>
+            {!editing && (
+              <button
+                onClick={reactivateClient}
+                className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500"
+              >
+                Reactivate client
+              </button>
+            )}
+          </>
         )}
         {!editing && (
           <button
@@ -311,15 +331,16 @@ export default function ClientDetailPage() {
 
           <label className="block">
             <span className="text-sm font-medium text-gray-700">
-              {client.client_type === "private" ? "Full name" : "Contact name (Bill to)"}
+              {client.client_type === "private" ? "Client name (Bill to)" : "Company name (Bill to)"}
             </span>
             <input value={draft.contact_name} onChange={(e) => setDraft({ ...draft, contact_name: e.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
           </label>
 
           {client.client_type === "company" && (
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Company</span>
-              <input value={draft.company} onChange={(e) => setDraft({ ...draft, company: e.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+              <span className="text-sm font-medium text-gray-700">Works for (optional, internal)</span>
+              <input value={draft.company} onChange={(e) => setDraft({ ...draft, company: e.target.value })} placeholder="e.g. Stone Community Care Pty Ltd" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+              <span className="text-xs text-gray-500">Internal reference only: never printed on the invoice.</span>
             </label>
           )}
 
@@ -343,9 +364,15 @@ export default function ClientDetailPage() {
             <input value={draft.abn} onChange={(e) => setDraft({ ...draft, abn: e.target.value })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
           </label>
 
-          <label className="flex items-center gap-2 self-end text-sm">
-            <input type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
-            Active (shown in the new invoice form)
+          {/* riguarda tutto il cliente, non l'ABN: su una riga a parte */}
+          <label className="flex items-start gap-2 border-t border-gray-200 pt-3 text-sm sm:col-span-2">
+            <input type="checkbox" className="mt-0.5" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
+            <span>
+              <span className="font-medium text-gray-700">Client active</span>
+              <span className="block text-xs text-gray-500">
+                Untick when you no longer work for this client: it disappears from the client list of new invoices, but its old invoices stay.
+              </span>
+            </span>
           </label>
 
           <p className="text-xs text-gray-500 sm:col-span-2">
@@ -370,7 +397,7 @@ export default function ClientDetailPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <section className={`rounded-lg border border-gray-200 bg-white p-4 ${editing ? "hidden" : ""}`}>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Contact details</h2>
-          {client.company && <p className="font-medium text-gray-900">{client.company}</p>}
+          {client.company && <p className="text-sm text-gray-500">Works for: {client.company} (not printed)</p>}
           {client.address && <p className="text-gray-700">{client.address}</p>}
           {client.phone && <p className="text-gray-700">Phone: {client.phone}</p>}
           {client.email && <p className="text-gray-700">Email: {client.email}</p>}

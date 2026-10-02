@@ -717,6 +717,9 @@ export default function InvoiceForm({ invoiceId = null }) {
                 {client.client_code} – {client.contact_name}
                 {client.company ? ` (${client.company})` : ""}
                 {client.client_type === "private" ? " · private" : ""}
+                {client.email && clients.some((c) => c.id !== client.id && c.contact_name.trim().toLowerCase() === client.contact_name.trim().toLowerCase())
+                  ? ` · ${client.email}`
+                  : ""}
               </option>
             ))}
           </select>

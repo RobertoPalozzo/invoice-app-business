@@ -46,7 +46,11 @@ export default function ClientsPage() {
 
   useEffect(() => {
     async function loadClients() {
-      const { data, error } = await supabase.from("clients").select("*").order("client_code");
+      const { data, error } = await supabase
+        .from("clients")
+        // anche gli assistiti di ogni cliente, per riconoscerlo meglio nell'elenco
+        .select("*, care_recipients(full_name, active)")
+        .order("client_code");
       if (error) setError(error.message);
       else setClients(data);
       setLoading(false);
@@ -139,15 +143,17 @@ export default function ClientsPage() {
 
           <label className="block">
             <span className="text-sm font-medium text-gray-700">
-              {form.client_type === "private" ? "Full name" : "Contact name (Bill to)"}
+              {form.client_type === "private" ? "Client name (Bill to)" : "Company name (Bill to)"}
             </span>
             <input value={form.contact_name} onChange={(e) => setField("contact_name", e.target.value)} className={inputClass} />
+            <span className="text-xs text-gray-500">First line under BILL TO on the invoice.</span>
           </label>
 
           {form.client_type === "company" && (
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Company</span>
-              <input value={form.company} onChange={(e) => setField("company", e.target.value)} className={inputClass} />
+              <span className="text-sm font-medium text-gray-700">Works for (optional, internal)</span>
+              <input value={form.company} onChange={(e) => setField("company", e.target.value)} placeholder="e.g. Stone Community Care Pty Ltd" className={inputClass} />
+              <span className="text-xs text-gray-500">Internal reference only: never printed on the invoice.</span>
             </label>
           )}
 
@@ -203,7 +209,7 @@ export default function ClientsPage() {
         <div className="flex justify-end border-b border-gray-200 px-4 py-2">
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-            Show inactive clients
+            Show inactive clients ({clients.filter((c) => !c.active).length})
           </label>
         </div>
 
@@ -216,35 +222,52 @@ export default function ClientsPage() {
             <thead className="text-left text-gray-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Code</th>
-                <th className="px-4 py-2 font-medium">Name</th>
-                <th className="px-4 py-2 font-medium">Company</th>
+                <th className="px-4 py-2 font-medium">Bill to</th>
+                <th className="px-4 py-2 font-medium">Email</th>
+                <th className="px-4 py-2 font-medium">Care recipients</th>
                 <th className="px-4 py-2 font-medium">Type</th>
-                <th className="px-4 py-2 font-medium">Phone</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((client) => (
-                <tr key={client.id} className={`border-t border-gray-100 hover:bg-gray-50 ${client.active ? "" : "text-gray-400"}`}>
-                  <td className="px-4 py-2 text-gray-500">{client.client_code}</td>
-                  <td className="px-4 py-2">
-                    <Link href={`/clients/${client.id}`} className="font-medium text-blue-700 hover:underline">
-                      {client.contact_name}
-                    </Link>
-                    {!client.active && " (inactive)"}
-                  </td>
-                  <td className="px-4 py-2">{client.company ?? "—"}</td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        client.client_type === "private" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
-                      }`}
-                    >
-                      {client.client_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2">{client.phone ?? "—"}</td>
-                </tr>
-              ))}
+              {visible.map((client) => {
+                // assistiti attivi: i primi 3 nomi + "+N" per gli altri
+                const names = (client.care_recipients ?? []).filter((r) => r.active).map((r) => r.full_name).sort();
+                const preview = names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3}` : "");
+                return (
+                  <tr key={client.id} className={`border-t border-gray-100 align-top hover:bg-gray-50 ${client.active ? "" : "text-gray-400"}`}>
+                    <td className="whitespace-nowrap px-4 py-2 font-mono text-gray-700">{client.client_code}</td>
+                    <td className="px-4 py-2">
+                      <Link href={`/clients/${client.id}`} className="font-medium text-blue-700 hover:underline">
+                        {client.contact_name}
+                      </Link>
+                      {!client.active && " (inactive)"}
+                      {client.company && <div className="text-xs text-gray-500">for {client.company}</div>}
+                    </td>
+                    <td className="px-4 py-2 text-gray-700">{client.email ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-700">
+                      {client.client_type === "private" ? (
+                        <span className="text-gray-400">—</span>
+                      ) : names.length === 0 ? (
+                        <span className="text-gray-400">none</span>
+                      ) : (
+                        <>
+                          <span className="font-medium">{names.length}</span>
+                          <div className="text-xs text-gray-500">{preview}</div>
+                        </>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          client.client_type === "private" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {client.client_type}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
