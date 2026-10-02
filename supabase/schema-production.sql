@@ -175,8 +175,10 @@ create table invoices (
   id              bigint generated always as identity primary key,
   year            int not null,
   sequence_number int not null,
+  number_suffix   text not null default ''       -- lettera rara, es. 'A' → 36A/2026
+                  check (number_suffix ~ '^[A-Z]?$'),
   invoice_number  text generated always as
-                  (sequence_number::text || '/' || year::text) stored,
+                  (sequence_number::text || number_suffix || '/' || year::text) stored,
   client_id       bigint not null references clients(id) on delete restrict,
   issue_date      date not null default current_date,
   due_date        date,
@@ -190,7 +192,7 @@ create table invoices (
   other_amount    numeric(10,2) not null default 0,  -- riga "OTHER" del riepilogo
   comments        text,                        -- riquadro "OTHER COMMENTS"
   created_at      timestamptz not null default now(),
-  unique (year, sequence_number),
+  unique (year, sequence_number, number_suffix),
   check (period_end is null or period_start is null or period_end >= period_start)
 );
 
