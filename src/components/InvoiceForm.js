@@ -336,8 +336,10 @@ export default function InvoiceForm({ invoiceId = null }) {
     );
   }
 
+  // Nuova riga: la data proposta è quella di oggi (si può cambiare a mano,
+  // es. per registrare oggi un servizio fatto ieri)
   function addLine(type) {
-    setLines((current) => [...current, emptyLine(type, periodStart, defaultRecipientId)]);
+    setLines((current) => [...current, emptyLine(type, todayISO(), defaultRecipientId)]);
   }
 
   function removeLine(key) {
