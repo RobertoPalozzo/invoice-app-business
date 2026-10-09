@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { refreshDraftDates } from "@/lib/draftDates";
 import { invoiceFileBaseName, makeInvoicePdf } from "@/lib/invoicePdf";
 import {
   formatCurrency,
@@ -90,8 +91,11 @@ export default function InvoicePrintPage() {
         return;
       }
 
+      // Bozza: il PDF esce con la data di oggi
+      const invoiceData = await refreshDraftDates(invoiceResult.data);
+
       setSettings(settingsResult.data);
-      setInvoice(invoiceResult.data);
+      setInvoice(invoiceData);
       setClient(clientResult.data);
       setItems(itemsResult.data);
       setLoading(false);

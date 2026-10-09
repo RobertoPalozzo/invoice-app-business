@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { refreshDraftDates } from "@/lib/draftDates";
 import {
   formatCurrency,
   formatDate,
@@ -70,7 +71,7 @@ export default function InvoiceDetailPage() {
 
       // Query 1: la fattura con i totali già calcolati dalla vista
       // .eq("id", id) → WHERE id = <parametro dell'URL>
-      const { data: invoiceData, error: invoiceError } = await supabase
+      const { data: invoiceRow, error: invoiceError } = await supabase
         .from("invoice_totals")
         .select("*")
         .eq("id", id)
@@ -81,11 +82,14 @@ export default function InvoiceDetailPage() {
         setLoading(false);
         return;
       }
-      if (!invoiceData) {
+      if (!invoiceRow) {
         setNotFound(true);
         setLoading(false);
         return;
       }
+
+      // Bozza: la data di emissione diventa quella di oggi
+      const invoiceData = await refreshDraftDates(invoiceRow);
 
       // Query 2 e 3 in parallelo: dati del cliente e righe della fattura.
       // care_recipients(full_name, address) aggiunge i dati dell'assistito
@@ -121,12 +125,15 @@ export default function InvoiceDetailPage() {
     }
     setBusy(true);
     setActionError(null);
+    // Bozza → inviata: la data si ferma a oggi (anche se la pagina
+    // era rimasta aperta da ieri)
+    const dated = await refreshDraftDates(invoice);
     const { error } = await supabase.from("invoices").update({ status: nextStatus }).eq("id", id);
     if (error) {
       setActionError(error.message);
     } else {
       // aggiorna solo lo stato locale: non serve ricaricare la pagina
-      setInvoice((current) => ({ ...current, status: nextStatus }));
+      setInvoice({ ...dated, status: nextStatus });
     }
     setBusy(false);
   }

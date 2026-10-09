@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { draftDateChanges } from "@/lib/draftDates";
 import { formatCurrency, formatDate, formatDayMonth, formatTime } from "@/lib/format";
 import {
   addDays,
@@ -223,10 +224,13 @@ export default function InvoiceForm({ invoiceId = null }) {
       }
 
       const inv = invoiceResult.data;
+      // Bozza: la data di emissione (e la scadenza) passano a oggi
+      // e vengono salvate insieme alle altre modifiche
+      const draftDates = draftDateChanges(inv);
       setExisting(inv);
       setClientId(String(inv.client_id));
-      setIssueDate(inv.issue_date);
-      setDueDate(inv.due_date ?? "");
+      setIssueDate(draftDates?.issue_date ?? inv.issue_date);
+      setDueDate(draftDates?.due_date ?? inv.due_date ?? "");
       setPeriodStart(inv.period_start ?? "");
       setPeriodEnd(inv.period_end ?? "");
       setPeriodTitle(inv.period_title ?? "");
@@ -575,10 +579,13 @@ export default function InvoiceForm({ invoiceId = null }) {
       return;
     }
 
-    // 1. aggiorna i dati della fattura (numero, data, cliente e GST restano)
+    // 1. aggiorna i dati della fattura (numero, cliente e GST restano).
+    //    La data di emissione cambia solo per le bozze (diventa oggi).
+    const fields = invoiceFields();
+    if (current.status === "draft") fields.issue_date = issueDate;
     const { error: updateError } = await supabase
       .from("invoices")
-      .update(invoiceFields())
+      .update(fields)
       .eq("id", existing.id);
     if (updateError) {
       setFormError(`Could not save the changes: ${updateError.message}`);
@@ -741,7 +748,12 @@ export default function InvoiceForm({ invoiceId = null }) {
             onChange={(e) => handleIssueDateChange(e.target.value)}
             className={inputClass}
           />
-          {isEdit && <span className="text-xs text-gray-500">Number and issue date stay the same.</span>}
+          {isEdit && existing.status === "draft" && (
+            <span className="text-xs text-gray-500">Draft: the issue date moves to today until the invoice is marked as sent.</span>
+          )}
+          {isEdit && existing.status !== "draft" && (
+            <span className="text-xs text-gray-500">Number and issue date stay the same.</span>
+          )}
         </label>
 
         <label className="block">
