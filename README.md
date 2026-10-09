@@ -13,8 +13,12 @@ Built with **Next.js (App Router)** and **Supabase (Postgres)** for the *Build A
 - Calculates hours from start and end times, and subtotal, GST and total
 - Blocks overlapping times, within the same invoice and across all invoices
 - Copies last week's invoice to save typing
-- Prints an A4 invoice that can be saved as PDF
+- New lines start with today's date (editable)
+- Creates the invoice PDF in the app: share it (Mail, WhatsApp...), download it or print it
+- PDF file name built from a format set in Settings, e.g. `Surname_Inv_54-2026_CLI003.pdf`
 - Tracks the invoice status: draft → sent → paid (or void)
+- Draft invoices take today's issue date until they are marked as sent
+- Installable on iPhone and iPad ("Add to Home Screen")
 - Ready for GST: one setting turns new invoices into "Tax Invoices"
 - Filters invoices by status, client and Australian financial year (1 July – 30 June)
 
@@ -26,7 +30,8 @@ invoice-app/
 ├── docs/
 │   ├── 01-project-plan.md             ← idea, pages, routes, requirements checklist
 │   ├── 02-database-schema.md          ← tables, relationships, design decisions
-│   └── 03-presentation-guide.md       ← talk outline and live demo script
+│   ├── 03-presentation-guide.md       ← talk outline and live demo script
+│   └── 04-going-live.md               ← publishing on Supabase + Netlify for real use
 ├── src/
 │   ├── app/                           ← pages (App Router)
 │   │   ├── page.js                    ← dashboard
@@ -45,14 +50,19 @@ invoice-app/
 │   ├── components/
 │   │   ├── AuthGuard.js               ← redirects to /login when signed out
 │   │   ├── NavBar.js                  ← top menu
-│   │   └── InvoiceForm.js             ← shared form (new + edit)
+│   │   ├── InvoiceForm.js             ← shared form (new + edit)
+│   │   └── InvoicePdf.js              ← A4 invoice layout for the PDF
 │   └── lib/
 │       ├── supabaseClient.js          ← Supabase connection
 │       ├── format.js                  ← currency, dates, times
-│       └── dateHelpers.js             ← periods, hours, weekends, financial year
+│       ├── dateHelpers.js             ← periods, hours, weekends, financial year
+│       ├── draftDates.js              ← keeps draft invoices dated today
+│       └── invoicePdf.js              ← builds the PDF file and its name
 ├── public/
 └── supabase/
-    ├── schema.sql                     ← full database (new projects)
+    ├── schema.sql                     ← full database with sample data (demo projects)
+    ├── schema-production.sql          ← full database without sample data (real use)
+    ├── test-cleanup.sql               ← removes test data (testing only)
     └── migrations/                    ← changes for an existing database
 ```
 
@@ -61,10 +71,12 @@ invoice-app/
 ### New Supabase project
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor → New query**, paste `supabase/schema.sql` and click **Run**.
+2. Open **SQL Editor → New query**, paste the schema and click **Run**:
+   - `supabase/schema.sql` for a demo project (includes invented sample data)
+   - `supabase/schema-production.sql` for real use (no sample data)
 3. Go to **Authentication → Users → Add user**, create the login account and tick **Auto Confirm User**.
 
-For real use, delete the sample data section at the end of `schema.sql` before running it.
+Both files already include every migration below.
 
 ### Existing project (created with an earlier schema)
 
@@ -75,6 +87,9 @@ Run the files in `supabase/migrations/` in order, once each:
 | `001_invoice_number_full_year.sql` | Invoice numbers as `53/2026` instead of `53/26` |
 | `002_settings_first_invoice_number.sql` | Starting invoice number in Settings |
 | `003_weekend_services.sql` | Weekend version of services |
+| `004_settings_pdf_file_name.sql` | PDF file name format in Settings |
+| `005_clients_contact_person.sql` | Client contact person (internal only, not printed) |
+| `006_invoice_number_suffix.sql` | Optional letter in the invoice number, e.g. `36A/2026` |
 
 ## Environment variables
 
@@ -104,7 +119,8 @@ npm run dev      # open http://localhost:3000
 | Security  | Row Level Security             |
 | Language  | JavaScript                     |
 | Styling   | Tailwind CSS                   |
-| PDF       | Browser print → Save as PDF    |
+| PDF       | @react-pdf/renderer (in the browser) |
+| Hosting   | Netlify (`production` branch)  |
 
 ## Data and privacy
 
