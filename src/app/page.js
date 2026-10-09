@@ -22,7 +22,10 @@ export default function DashboardPage() {
       const { data, error } = await supabase
         .from("invoice_totals")
         .select("id, invoice_number, client_name, client_code, issue_date, status, total")
-        .order("issue_date", { ascending: false })
+        // stesso ordine della pagina Invoices: numero più alto in cima
+        .order("year", { ascending: false })
+        .order("sequence_number", { ascending: false })
+        .order("number_suffix", { ascending: false })
         .limit(10);
 
       if (error) setError(error.message);
