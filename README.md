@@ -7,6 +7,7 @@ Built with **Next.js (App Router)** and **Supabase (Postgres)** for the *Build A
 ## What it does
 
 - Stores clients (companies and private clients), their care recipients and a catalogue of services
+- Splits clients and services into two programs, **SAH** (Support at Home) and **Private**, each with its own tab; an invoice only offers the services of its client's program
 - Applies the right rate automatically: care recipient rate → client rate → default rate
 - Switches to the weekend version of a service (and its higher rate) on Saturdays and Sundays
 - Creates weekly invoices with service lines (date, care recipient, time, hours) and mileage lines (route, Km)
@@ -51,12 +52,14 @@ invoice-app/
 │   │   ├── AuthGuard.js               ← redirects to /login when signed out
 │   │   ├── NavBar.js                  ← top menu
 │   │   ├── InvoiceForm.js             ← shared form (new + edit)
+│   │   ├── ProgramTabs.js             ← SAH / Private tabs
 │   │   └── InvoicePdf.js              ← A4 invoice layout for the PDF
 │   └── lib/
 │       ├── supabaseClient.js          ← Supabase connection
 │       ├── format.js                  ← currency, dates, times
 │       ├── dateHelpers.js             ← periods, hours, weekends, financial year
 │       ├── draftDates.js              ← keeps draft invoices dated today
+│       ├── programs.js                ← SAH / Private programs
 │       └── invoicePdf.js              ← builds the PDF file and its name
 ├── public/
 └── supabase/
@@ -90,6 +93,7 @@ Run the files in `supabase/migrations/` in order, once each:
 | `004_settings_pdf_file_name.sql` | PDF file name format in Settings |
 | `005_clients_contact_person.sql` | Client contact person (internal only, not printed) |
 | `006_invoice_number_suffix.sql` | Optional letter in the invoice number, e.g. `36A/2026` |
+| `007_client_service_program.sql` | SAH / Private program for clients and services |
 
 ## Environment variables
 

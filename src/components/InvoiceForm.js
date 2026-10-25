@@ -21,11 +21,12 @@
 //      (in quest'ordine: se qualcosa va storto non si perdono righe)
 // In entrambi i casi alla fine apre /invoices/[id].
 // =====================================================================
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { draftDateChanges } from "@/lib/draftDates";
+import { PROGRAM_TABS, serviceFitsProgram } from "@/lib/programs";
 import { formatCurrency, formatDate, formatDayMonth, formatTime } from "@/lib/format";
 import {
   addDays,
@@ -83,6 +84,16 @@ const inputClass = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm
 
 // "Km", "km", "KM" → servizio chilometrico (non conta maiuscole/minuscole)
 const isKm = (unit) => (unit ?? "").trim().toLowerCase() === "km";
+
+// Pulsanti per aggiungere una riga (tipo di riga + testo del pulsante)
+const ADD_LINE_BUTTONS = [
+  { type: "service", label: "+ Service" },
+  { type: "mileage", label: "+ Mileage" },
+  { type: "other", label: "+ Other" },
+];
+
+// Per quanto tempo restano visibili le conferme "✓ Added" (millisecondi)
+const ADDED_FEEDBACK_MS = 1500;
 
 // Stati in cui una fattura si può modificare
 const EDITABLE_STATUSES = ["draft", "sent"];
@@ -161,6 +172,13 @@ export default function InvoiceForm({ invoiceId = null }) {
   const [comments, setComments] = useState("");
   const [otherAmount, setOtherAmount] = useState("0");
   const [lines, setLines] = useState([]);
+
+  // ---------- Conferma della riga appena aggiunta ----------
+  // justAdded = { type, key } per ADDED_FEEDBACK_MS dopo il clic, poi null.
+  // Serve a: colorare il pulsante premuto, evidenziare la nuova riga
+  // e portarla in vista.
+  const [justAdded, setJustAdded] = useState(null);
+  const addedTimer = useRef(null);
 
   // ---------- Stato del salvataggio ----------
   const [saving, setSaving] = useState(false);
@@ -265,6 +283,8 @@ export default function InvoiceForm({ invoiceId = null }) {
 
   // ---------- Valori derivati (ricalcolati a ogni render) ----------
   const selectedClient = clients.find((c) => String(c.id) === String(clientId));
+  // programma del cliente (SAH o Private): decide quali servizi si vedono
+  const clientProgram = selectedClient?.program;
   // per un cliente privato c'è un solo assistito: viene scelto in automatico
   const defaultRecipientId = recipients.length === 1 ? String(recipients[0].id) : "";
   // GST: una nuova fattura segue le impostazioni attuali; una fattura
@@ -339,8 +359,30 @@ export default function InvoiceForm({ invoiceId = null }) {
   // Nuova riga: la data proposta è quella di oggi (si può cambiare a mano,
   // es. per registrare oggi un servizio fatto ieri)
   function addLine(type) {
-    setLines((current) => [...current, emptyLine(type, todayISO(), defaultRecipientId)]);
+    const line = emptyLine(type, todayISO(), defaultRecipientId);
+    setLines((current) => [...current, line]);
+
+    // conferma visiva: riparte da capo se si preme di nuovo prima della fine
+    setJustAdded({ type, key: line.key });
+    clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setJustAdded(null), ADDED_FEEDBACK_MS);
   }
+
+  // Quando una riga viene aggiunta: la pagina scorre fino a lei
+  // e il cursore va nel campo della data, pronto per essere cambiato.
+  // Gira DOPO che React ha disegnato la nuova riga, quindi la trova.
+  const justAddedKey = justAdded?.key;
+  useEffect(() => {
+    if (!justAddedKey) return;
+    const row = document.getElementById(`line-${justAddedKey}`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    // preventScroll: lo scorrimento lo fa già scrollIntoView, in modo morbido
+    row.querySelector("input[type='date']")?.focus({ preventScroll: true });
+  }, [justAddedKey]);
+
+  // Se si lascia la pagina prima della fine del timer, lo si cancella
+  useEffect(() => () => clearTimeout(addedTimer.current), []);
 
   function removeLine(key) {
     setLines((current) => current.filter((line) => line.key !== key));
@@ -721,17 +763,22 @@ export default function InvoiceForm({ invoiceId = null }) {
             className={inputClass}
           >
             <option value="">Choose a client...</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.client_code} – {client.contact_name}
-                {client.contact_person || client.company
-                  ? ` (${[client.contact_person, client.company].filter(Boolean).join(" · ")})`
-                  : ""}
-                {client.client_type === "private" ? " · private" : ""}
-                {client.email && clients.some((c) => c.id !== client.id && c.contact_name.trim().toLowerCase() === client.contact_name.trim().toLowerCase())
-                  ? ` · ${client.email}`
-                  : ""}
-              </option>
+            {/* clienti divisi in due gruppi: SAH e Private */}
+            {PROGRAM_TABS.map((group) => (
+              <optgroup key={group.value} label={group.label}>
+                {clients.filter((client) => (client.program === "sah" ? "sah" : "private") === group.value).map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.client_code} – {client.contact_name}
+                    {client.contact_person || client.company
+                      ? ` (${[client.contact_person, client.company].filter(Boolean).join(" · ")})`
+                      : ""}
+                    {client.client_type === "private" ? " · private" : ""}
+                    {client.email && clients.some((c) => c.id !== client.id && c.contact_name.trim().toLowerCase() === client.contact_name.trim().toLowerCase())
+                      ? ` · ${client.email}`
+                      : ""}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           {isEdit && (
@@ -788,15 +835,28 @@ export default function InvoiceForm({ invoiceId = null }) {
               Copy last invoice
             </button>
           )}
-          <button type="button" disabled={!clientId} onClick={() => addLine("service")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40">
-            + Service
-          </button>
-          <button type="button" disabled={!clientId} onClick={() => addLine("mileage")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40">
-            + Mileage
-          </button>
-          <button type="button" disabled={!clientId} onClick={() => addLine("other")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-40">
-            + Other
-          </button>
+          {ADD_LINE_BUTTONS.map(({ type, label }) => {
+            const added = justAdded?.type === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                disabled={!clientId}
+                onClick={() => addLine(type)}
+                className={`rounded-md border px-3 py-1.5 text-sm transition-colors duration-300 disabled:opacity-40 ${
+                  added
+                    ? "border-green-600 bg-green-600 text-white"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {/* i due testi occupano lo stesso spazio: il pulsante non cambia larghezza */}
+                <span className="grid">
+                  <span className={`col-start-1 row-start-1 ${added ? "invisible" : ""}`}>{label}</span>
+                  <span className={`col-start-1 row-start-1 ${added ? "" : "invisible"}`}>✓ Added</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {copyMessage && <p className="border-b border-gray-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{copyMessage}</p>}
@@ -807,16 +867,27 @@ export default function InvoiceForm({ invoiceId = null }) {
         )}
 
         {lines.map((line, index) => {
-          // servizi adatti al tipo di riga: Km per il rimborso, ore per i servizi
-          // servizi adatti al tipo di riga (Km per il rimborso, ore per i servizi);
-          // quelli disattivati compaiono solo se la riga li usa già
+          // servizi adatti al tipo di riga (Km per il rimborso, ore per i servizi)
+          // e al programma del cliente (SAH o Private, più quelli per tutti);
+          // quelli disattivati o di un altro programma compaiono solo se
+          // la riga li usa già (es. in una fattura vecchia)
+          const usedByLine = (s) => String(s.id) === line.service_id;
           const serviceOptions = services.filter(
             (s) =>
               (line.item_type === "mileage" ? isKm(s.unit) : !isKm(s.unit)) &&
-              (s.active || String(s.id) === line.service_id)
+              (s.active || usedByLine(s)) &&
+              (!clientProgram || serviceFitsProgram(s, clientProgram) || usedByLine(s))
           );
           return (
-            <div key={line.key} className="grid gap-3 border-t border-gray-100 px-4 py-4 first:border-t-0 sm:grid-cols-6">
+            <div
+              key={line.key}
+              id={`line-${line.key}`}
+              className={`grid scroll-mt-4 gap-3 border-t border-gray-100 px-4 py-4 transition-[background-color,box-shadow] duration-700 first:border-t-0 sm:grid-cols-6 ${
+                // riga appena aggiunta: sfondo celeste + barra blu a sinistra
+                // (la barra è un'ombra interna: non sposta il contenuto)
+                line.key === justAddedKey ? "bg-sky-100 shadow-[inset_4px_0_0_var(--color-sky-500)]" : ""
+              }`}
+            >
               <div className="flex items-center justify-between sm:col-span-6">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Line {index + 1} · {line.item_type}

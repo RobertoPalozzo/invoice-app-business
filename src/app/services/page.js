@@ -14,13 +14,25 @@
 //   assistito → cliente → tariffa base.
 //   Cambiare una tariffa NON modifica le fatture già emesse,
 //   perché ogni riga di fattura conserva il prezzo usato.
+//
+// Due schede, SAH e Private: ognuna mostra i servizi del suo programma
+// (più quelli "All clients", es. i Km) e le tariffe dei suoi clienti.
 // =====================================================================
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { formatCurrency } from "@/lib/format";
+import { PROGRAM_LABELS, PROGRAM_STYLES, serviceFitsProgram } from "@/lib/programs";
+import ProgramTabs from "@/components/ProgramTabs";
 
 const inputClass = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
-const EMPTY_SERVICE = { description: "", unit: "hours", default_rate: "", weekend_service_id: "" };
+const EMPTY_SERVICE = { description: "", unit: "hours", default_rate: "", weekend_service_id: "", program: "" };
+
+// Scelte per "For" (a chi è destinato un servizio)
+const PROGRAM_OPTIONS = [
+  { value: "sah", label: "SAH only" },
+  { value: "private", label: "Private only" },
+  { value: "all", label: "All clients" },
+];
 const EMPTY_RATE = { service_id: "", client_id: "", care_recipient_id: "", rate: "", notes: "" };
 
 export default function ServicesPage() {
@@ -41,6 +53,7 @@ export default function ServicesPage() {
 
   const [message, setMessage] = useState(null); // { type, text }
   const [showInactive, setShowInactive] = useState(false); // mostra anche i servizi disattivati
+  const [tab, setTab] = useState("sah"); // scheda aperta: 'sah' o 'private'
 
   // Carica tutto ciò che serve alla pagina
   async function loadAll() {
@@ -48,9 +61,9 @@ export default function ServicesPage() {
       supabase.from("services").select("*").order("description"),
       supabase
         .from("rates")
-        .select("*, services(description, unit, default_rate), clients(client_code, contact_name), care_recipients(full_name, clients(client_code))")
+        .select("*, services(description, unit, default_rate), clients(client_code, contact_name, program), care_recipients(full_name, clients(client_code, program))")
         .order("id"),
-      supabase.from("clients").select("id, client_code, contact_name, active").order("client_code"),
+      supabase.from("clients").select("id, client_code, contact_name, active, program").order("client_code"),
       supabase.from("care_recipients").select("id, client_id, full_name, active").order("full_name"),
     ]);
     const firstError = servicesResult.error || ratesResult.error || clientsResult.error || recipientsResult.error;
@@ -95,6 +108,7 @@ export default function ServicesPage() {
       description: newService.description.trim(),
       unit: newService.unit.trim() || "hours",
       default_rate: rate,
+      program: newService.program || tab, // se non scelto: il programma della scheda aperta
     });
     if (error) return showError(error);
     setNewService(EMPTY_SERVICE);
@@ -109,6 +123,7 @@ export default function ServicesPage() {
       unit: service.unit,
       default_rate: String(service.default_rate),
       weekend_service_id: service.weekend_service_id ? String(service.weekend_service_id) : "",
+      program: service.program,
     });
   }
 
@@ -125,6 +140,7 @@ export default function ServicesPage() {
         unit: serviceDraft.unit.trim(),
         default_rate: rate,
         weekend_service_id: serviceDraft.weekend_service_id ? Number(serviceDraft.weekend_service_id) : null,
+        program: serviceDraft.program,
       })
       .eq("id", id);
     if (error) return showError(error);
@@ -219,6 +235,18 @@ export default function ServicesPage() {
   if (error) return <p className="text-red-600">Could not load services: {error}</p>;
 
   const recipientsOfClient = recipients.filter((r) => String(r.client_id) === newRate.client_id && r.active);
+
+  // ----- Cosa mostra la scheda aperta -----
+  // servizi del programma della scheda + quelli per tutti
+  const shownServices = services.filter((s) => showInactive || s.active);
+  const tabServices = shownServices.filter((s) => serviceFitsProgram(s, tab) || s.id === editingServiceId);
+  const serviceCounts = {
+    sah: shownServices.filter((s) => serviceFitsProgram(s, "sah")).length,
+    private: shownServices.filter((s) => serviceFitsProgram(s, "private")).length,
+  };
+  // tariffe dei clienti di questo programma (per tutto il cliente o per un suo assistito)
+  const rateProgram = (rate) => rate.clients?.program ?? rate.care_recipients?.clients?.program;
+  const tabRates = rates.filter((rate) => rateProgram(rate) === tab);
   const smallButton = "rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100";
 
   return (
@@ -231,13 +259,24 @@ export default function ServicesPage() {
         </p>
       )}
 
+      <ProgramTabs
+        value={tab}
+        onChange={(value) => {
+          setTab(value);
+          setEditingServiceId(null);
+          setEditingRateId(null);
+          setNewRate(EMPTY_RATE); // il cliente scelto apparteneva all'altra scheda
+        }}
+        counts={serviceCounts}
+      />
+
       {/* ================= SERVICES ================= */}
       <section className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
           <h2 className="font-medium text-gray-900">Services</h2>
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-            Show inactive ({services.filter((s) => !s.active).length})
+            Show inactive ({services.filter((s) => !s.active && serviceFitsProgram(s, tab)).length})
           </label>
         </div>
         <table className="w-full text-sm">
@@ -247,12 +286,20 @@ export default function ServicesPage() {
               <th className="px-4 py-2 font-medium">Unit</th>
               <th className="px-4 py-2 text-right font-medium">Default rate</th>
               <th className="px-4 py-2 font-medium">Weekend version</th>
+              <th className="px-4 py-2 font-medium">For</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {services.filter((s) => showInactive || s.active || s.id === editingServiceId).map((service) =>
+            {tabServices.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                  No {tab === "sah" ? "SAH" : "private"} services yet.
+                </td>
+              </tr>
+            )}
+            {tabServices.map((service) =>
               editingServiceId === service.id ? (
                 <tr key={service.id} className="border-t border-gray-100 bg-yellow-50">
                   <td className="px-4 py-2">
@@ -281,6 +328,13 @@ export default function ServicesPage() {
                         ))}
                     </select>
                   </td>
+                  <td className="px-4 py-2">
+                    <select value={serviceDraft.program} onChange={(e) => setServiceDraft({ ...serviceDraft, program: e.target.value })} className={inputClass}>
+                      {PROGRAM_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td></td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     <button onClick={() => saveService(service.id)} className="mr-1 rounded-md bg-gray-900 px-2 py-1 text-xs text-white">Save</button>
@@ -294,6 +348,11 @@ export default function ServicesPage() {
                   <td className="px-4 py-2 text-right font-medium">{formatCurrency(service.default_rate)}</td>
                   <td className="px-4 py-2 text-gray-600">
                     {services.find((s) => s.id === service.weekend_service_id)?.description ?? "—"}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${PROGRAM_STYLES[service.program]}`}>
+                      {PROGRAM_LABELS[service.program]}
+                    </span>
                   </td>
                   <td className="px-4 py-2">{service.active ? "Active" : "Inactive"}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
@@ -328,6 +387,14 @@ export default function ServicesPage() {
             <span className="text-xs text-gray-600">Default rate $</span>
             <input type="number" step="0.01" min="0" value={newService.default_rate} onChange={(e) => setNewService({ ...newService, default_rate: e.target.value })} className={inputClass} />
           </label>
+          <label className="block w-36">
+            <span className="text-xs text-gray-600">For</span>
+            <select value={newService.program || tab} onChange={(e) => setNewService({ ...newService, program: e.target.value })} className={inputClass}>
+              {PROGRAM_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
           <button type="submit" className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700">
             Add service
           </button>
@@ -335,7 +402,7 @@ export default function ServicesPage() {
         <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500">
           Use the unit “Km” for mileage services: they appear in the mileage lines of the invoice form. To charge a
           higher weekend rate, add a “… Weekend” service, then edit the weekday service and choose it as its weekend
-          version.
+          version. “For” decides which clients can use a service: SAH only, Private only, or All clients (e.g. mileage).
         </p>
       </section>
 
@@ -348,8 +415,8 @@ export default function ServicesPage() {
           </p>
         </div>
 
-        {rates.length === 0 ? (
-          <p className="px-4 py-6 text-gray-500">No custom rates: every client uses the default rates.</p>
+        {tabRates.length === 0 ? (
+          <p className="px-4 py-6 text-gray-500">No custom rates: every {tab === "sah" ? "SAH" : "private"} client uses the default rates.</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-gray-500">
@@ -363,7 +430,7 @@ export default function ServicesPage() {
               </tr>
             </thead>
             <tbody>
-              {rates.map((rate) => (
+              {tabRates.map((rate) => (
                 <tr key={rate.id} className="border-t border-gray-100">
                   <td className="px-4 py-2">{rate.services.description}</td>
                   <td className="px-4 py-2">
@@ -422,7 +489,7 @@ export default function ServicesPage() {
             <span className="text-xs text-gray-600">Service</span>
             <select value={newRate.service_id} onChange={(e) => setNewRate({ ...newRate, service_id: e.target.value })} className={inputClass}>
               <option value="">Choose...</option>
-              {services.filter((s) => s.active).map((s) => (
+              {services.filter((s) => s.active && serviceFitsProgram(s, tab)).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.description} ({formatCurrency(s.default_rate)}/{s.unit})
                 </option>
@@ -437,7 +504,7 @@ export default function ServicesPage() {
               className={inputClass}
             >
               <option value="">Choose...</option>
-              {clients.filter((c) => c.active).map((c) => (
+              {clients.filter((c) => c.active && c.program === tab).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.client_code} – {c.contact_name}
                 </option>

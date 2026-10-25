@@ -5,16 +5,19 @@
 //   - il codice cliente (CLI004, CLI005...) si calcola da solo
 //   - per un cliente privato si crea anche l'assistito con gli stessi
 //     dati, perché il privato riceve il servizio per sé
+//   - due schede: clienti SAH (Support at Home) e clienti privati
 // =====================================================================
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import ProgramTabs from "@/components/ProgramTabs";
 
 const inputClass = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
 
 // Valori vuoti del form "New client"
 const EMPTY_CLIENT = {
+  program: "sah",
   client_type: "company",
   contact_name: "",
   company: "",
@@ -38,6 +41,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [tab, setTab] = useState("sah"); // scheda aperta: 'sah' o 'private'
 
   // Form "New client"
   const [showForm, setShowForm] = useState(false);
@@ -84,6 +88,7 @@ export default function ClientsPage() {
       .from("clients")
       .insert({
         client_code: clientCode,
+        program: form.program,
         client_type: form.client_type,
         contact_name: form.contact_name.trim(),
         company: form.client_type === "company" ? clean(form.company) : null,
@@ -114,14 +119,26 @@ export default function ClientsPage() {
     router.push(`/clients/${newClient.id}`);
   }
 
-  const visible = clients.filter((c) => showInactive || c.active);
+  // clienti della scheda aperta (e attivi, se non si chiedono anche gli inattivi)
+  const shown = clients.filter((c) => showInactive || c.active);
+  const visible = shown.filter((c) => c.program === tab);
+  const counts = {
+    sah: shown.filter((c) => c.program === "sah").length,
+    private: shown.filter((c) => c.program === "private").length,
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Clients</h1>
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+          <button
+            onClick={() => {
+              // il nuovo cliente parte nel programma della scheda aperta
+              setForm({ ...EMPTY_CLIENT, program: tab });
+              setShowForm(true);
+            }}
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
             New client
           </button>
         )}
@@ -131,6 +148,18 @@ export default function ClientsPage() {
       {showForm && (
         <form onSubmit={handleCreate} className="grid gap-4 rounded-lg border border-gray-200 bg-white p-4 sm:grid-cols-2">
           <h2 className="font-medium text-gray-900 sm:col-span-2">New client</h2>
+
+          <fieldset className="flex flex-wrap gap-4 text-sm sm:col-span-2">
+            <span className="font-medium text-gray-700">Program:</span>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={form.program === "sah"} onChange={() => setField("program", "sah")} />
+              SAH (Support at Home)
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={form.program === "private"} onChange={() => setField("program", "private")} />
+              Private
+            </label>
+          </fieldset>
 
           <fieldset className="flex gap-4 text-sm sm:col-span-2">
             <label className="flex items-center gap-2">
@@ -214,7 +243,9 @@ export default function ClientsPage() {
         </form>
       )}
 
-      {/* ----- Elenco ----- */}
+      {/* ----- Elenco, diviso in due schede ----- */}
+      <ProgramTabs value={tab} onChange={setTab} counts={counts} />
+
       <section className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <div className="flex justify-end border-b border-gray-200 px-4 py-2">
           <label className="flex items-center gap-2 text-sm text-gray-600">
@@ -225,7 +256,9 @@ export default function ClientsPage() {
 
         {loading && <p className="px-4 py-6 text-gray-500">Loading clients...</p>}
         {error && <p className="px-4 py-6 text-red-600">Could not load clients: {error}</p>}
-        {!loading && !error && visible.length === 0 && <p className="px-4 py-6 text-gray-500">No clients yet.</p>}
+        {!loading && !error && visible.length === 0 && (
+          <p className="px-4 py-6 text-gray-500">No {tab === "sah" ? "SAH" : "private"} clients yet.</p>
+        )}
 
         {!loading && !error && visible.length > 0 && (
           <table className="w-full text-sm">

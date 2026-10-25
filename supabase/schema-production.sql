@@ -61,6 +61,8 @@ create table clients (
   client_code    text not null unique,         -- es. CLI003 (= "Customer ID")
   client_type    text not null default 'company'
                  check (client_type in ('company', 'private')),
+  program        text not null default 'private'  -- 'sah' = Support at Home, 'private' = privati e commerciali
+                 constraint clients_program_check check (program in ('sah', 'private')),
   contact_name   text not null,                -- nome stampato in fattura
   company        text,                         -- vuoto per i privati
   contact_person text,                         -- persona di riferimento (interno, non stampato)
@@ -98,13 +100,15 @@ create index care_recipients_client_idx on care_recipients(client_id);
 -- ---------------------------------------------------------------------
 create table services (
   id                 bigint generated always as identity primary key,
-  description        text not null,                -- es. "SAH Individual social support Weekday"
+  description        text not null,                -- es. "SAH Individual social support – Weekday"
   unit               text not null default 'hours',-- hours, Km...
   default_rate       numeric(10,2) not null,
   gst_applicable     boolean not null default true,
   active             boolean not null default true,
   weekend_service_id bigint references services(id) on delete set null,
-  constraint services_weekend_not_self check (weekend_service_id <> id)
+  program            text not null default 'private', -- a chi è destinato: 'sah', 'private' o 'all'
+  constraint services_weekend_not_self check (weekend_service_id <> id),
+  constraint services_program_check check (program in ('sah', 'private', 'all'))
 );
 
 

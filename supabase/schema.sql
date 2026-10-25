@@ -54,6 +54,8 @@ create table clients (
   client_code    text not null unique,         -- es. CLI003 (= "Customer ID")
   client_type    text not null default 'company'
                  check (client_type in ('company', 'private')),
+  program        text not null default 'private'  -- 'sah' = Support at Home, 'private' = privati e commerciali
+                 constraint clients_program_check check (program in ('sah', 'private')),
   contact_name   text not null,                -- nome stampato in fattura
   company        text,                         -- vuoto per i privati
   contact_person text,                         -- persona di riferimento (interno, non stampato)
@@ -91,13 +93,15 @@ create index care_recipients_client_idx on care_recipients(client_id);
 -- ---------------------------------------------------------------------
 create table services (
   id                 bigint generated always as identity primary key,
-  description        text not null,                -- es. "SAH Individual social support Weekday"
+  description        text not null,                -- es. "SAH Individual social support – Weekday"
   unit               text not null default 'hours',-- hours, Km...
   default_rate       numeric(10,2) not null,
   gst_applicable     boolean not null default true,
   active             boolean not null default true,
   weekend_service_id bigint references services(id) on delete set null,
-  constraint services_weekend_not_self check (weekend_service_id <> id)
+  program            text not null default 'private', -- a chi è destinato: 'sah', 'private' o 'all'
+  constraint services_weekend_not_self check (weekend_service_id <> id),
+  constraint services_program_check check (program in ('sah', 'private', 'all'))
 );
 
 
@@ -291,10 +295,11 @@ values ('Jane Example', 'Cleaning & Aged Care Services', '00 000 000 000',
         'Example Bank', 'Jane Example', '000-000', '00000000');
 
 -- due compagnie e un cliente privato
-insert into clients (client_code, client_type, contact_name, company, address, phone, email) values
-  ('CLI001', 'company', 'A. Manager',     'Demo Community Care', '5 Demo Road, Coburg VIC 3058',     '0411 111 111', 'billing@demo-care.example'),
-  ('CLI002', 'company', 'B. Coordinator', 'Sample Home Support', '9 Sample Ave, Brunswick VIC 3056', '0422 222 222', 'accounts@sample-home.example'),
-  ('CLI003', 'private', 'Private Person',  null,                 '78 Mock Street, Pascoe Vale VIC 3044', '0433 333 333', null);
+-- (le due compagnie lavorano per il programma SAH, il privato no)
+insert into clients (client_code, client_type, program, contact_name, company, address, phone, email) values
+  ('CLI001', 'company', 'sah',     'A. Manager',     'Demo Community Care', '5 Demo Road, Coburg VIC 3058',     '0411 111 111', 'billing@demo-care.example'),
+  ('CLI002', 'company', 'sah',     'B. Coordinator', 'Sample Home Support', '9 Sample Ave, Brunswick VIC 3056', '0422 222 222', 'accounts@sample-home.example'),
+  ('CLI003', 'private', 'private', 'Private Person',  null,                 '78 Mock Street, Pascoe Vale VIC 3044', '0433 333 333', null);
 
 insert into care_recipients (client_id, full_name, address) values
   (1, 'Recipient One',   '12 Fake Street, Preston VIC 3072'),
@@ -302,12 +307,12 @@ insert into care_recipients (client_id, full_name, address) values
   (2, 'Recipient Three', '56 Imaginary Lane, Footscray VIC 3011'),
   (3, 'Private Person',  '78 Mock Street, Pascoe Vale VIC 3044');  -- il privato è assistito di sé stesso
 
-insert into services (description, unit, default_rate) values
-  ('SAH Individual social support Weekday',                            'hours', 40.00),  -- id 1
-  ('SAH General House Cleaning Weekday',                               'hours', 40.00),  -- id 2
-  ('General house cleaning and SAH Individual social support Weekday', 'hours', 45.00),  -- id 3
-  ('Mileage Reimbursement',                                            'Km',     0.80),  -- id 4
-  ('SAH Individual social support Weekend',                            'hours', 50.00);  -- id 5
+insert into services (description, unit, default_rate, program) values
+  ('SAH Individual social support – Weekday',                          'hours', 40.00, 'sah'),      -- id 1
+  ('SAH General house cleaning – Weekday',                             'hours', 40.00, 'sah'),      -- id 2
+  ('Domestic assistance – General house cleaning',                     'hours', 45.00, 'private'),  -- id 3
+  ('Mileage reimbursement',                                            'Km',     0.80, 'all'),      -- id 4
+  ('SAH Individual social support – Weekend',                          'hours', 50.00, 'sah');      -- id 5
 
 -- il social support Weekday (1) usa la versione Weekend (5) al sabato e domenica
 update services set weekend_service_id = 5 where id = 1;
@@ -328,12 +333,12 @@ insert into invoices (year, sequence_number, client_id, issue_date, due_date,
 insert into invoice_items (invoice_id, position, item_type, service_date, care_recipient_id, service_id,
                            description, start_time, end_time, route, quantity, unit, unit_price) values
   -- fattura 1: compagnia, assistito 2 con tariffa personalizzata
-  (1, 1, 'service', '2026-09-22', 1, 1, 'SAH Individual social support Weekday', '10:00', '12:00', null, 2.0, 'hours', 40.00),
-  (1, 2, 'service', '2026-09-22', 2, 1, 'SAH Individual social support Weekday', '14:00', '16:00', null, 2.0, 'hours', 45.00),
-  (1, 3, 'mileage', '2026-09-23', 1, 4, 'Mileage Reimbursement', null, null,
+  (1, 1, 'service', '2026-09-22', 1, 1, 'SAH Individual social support – Weekday', '10:00', '12:00', null, 2.0, 'hours', 40.00),
+  (1, 2, 'service', '2026-09-22', 2, 1, 'SAH Individual social support – Weekday', '14:00', '16:00', null, 2.0, 'hours', 45.00),
+  (1, 3, 'mileage', '2026-09-23', 1, 4, 'Mileage reimbursement', null, null,
          'From client home to local shopping centre and back', 3.4, 'Km', 0.80),
   -- fattura 2: cliente privato, due settimane, 1 $/Km
-  (2, 1, 'service', '2026-09-17', 4, 3, 'General house cleaning and SAH Individual social support Weekday', '10:00', '14:00', null, 4.0, 'hours', 45.00),
-  (2, 2, 'mileage', '2026-09-17', 4, 4, 'Mileage Reimbursement', null, null,
+  (2, 1, 'service', '2026-09-17', 4, 3, 'Domestic assistance – General house cleaning', '10:00', '14:00', null, 4.0, 'hours', 45.00),
+  (2, 2, 'mileage', '2026-09-17', 4, 4, 'Mileage reimbursement', null, null,
          'From home to hardware store and back', 17.0, 'Km', 1.00),
-  (2, 3, 'service', '2026-09-24', 4, 3, 'General house cleaning and SAH Individual social support Weekday', '09:00', '12:00', null, 3.0, 'hours', 45.00);
+  (2, 3, 'service', '2026-09-24', 4, 3, 'Domestic assistance – General house cleaning', '09:00', '12:00', null, 3.0, 'hours', 45.00);

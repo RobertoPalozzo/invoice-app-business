@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { PROGRAM_LABELS, PROGRAM_STYLES } from "@/lib/programs";
 import { formatCurrency, formatDate, STATUS_STYLES } from "@/lib/format";
 
 export default function ClientDetailPage() {
@@ -155,6 +156,7 @@ export default function ClientDetailPage() {
   function startEditing() {
     // il form parte dai valori attuali (null → stringa vuota)
     setDraft({
+      program: client.program,
       contact_name: client.contact_name ?? "",
       company: client.company ?? "",
       contact_person: client.contact_person ?? "",
@@ -179,6 +181,7 @@ export default function ClientDetailPage() {
 
     const clean = (value) => value.trim() || null;
     const changes = {
+      program: draft.program,
       contact_name: draft.contact_name.trim(),
       company: client.client_type === "company" ? clean(draft.company) : null,
       contact_person: client.client_type === "company" ? clean(draft.contact_person) : null,
@@ -303,6 +306,9 @@ export default function ClientDetailPage() {
         >
           {client.client_type}
         </span>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${PROGRAM_STYLES[client.program]}`}>
+          {PROGRAM_LABELS[client.program]}
+        </span>
         {!client.active && (
           <>
             <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">inactive</span>
@@ -330,6 +336,20 @@ export default function ClientDetailPage() {
       {editing && (
         <form onSubmit={saveClient} className="grid gap-4 rounded-lg border border-gray-200 bg-white p-4 sm:grid-cols-2">
           <h2 className="font-medium text-gray-900 sm:col-span-2">Edit client {client.client_code}</h2>
+
+          {/* programma: decide in quale scheda compare il cliente
+              e quali servizi si vedono nelle sue fatture */}
+          <fieldset className="flex flex-wrap gap-4 text-sm sm:col-span-2">
+            <span className="font-medium text-gray-700">Program:</span>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={draft.program === "sah"} onChange={() => setDraft({ ...draft, program: "sah" })} />
+              SAH (Support at Home)
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={draft.program === "private"} onChange={() => setDraft({ ...draft, program: "private" })} />
+              Private
+            </label>
+          </fieldset>
 
           <label className="block">
             <span className="text-sm font-medium text-gray-700">
