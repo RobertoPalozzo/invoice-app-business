@@ -179,6 +179,9 @@ export default function InvoiceForm({ invoiceId = null }) {
   // e portarla in vista.
   const [justAdded, setJustAdded] = useState(null);
   const addedTimer = useRef(null);
+  // riga appena spostata con ↑ / ↓ (evidenziata per un attimo)
+  const [movedKey, setMovedKey] = useState(null);
+  const movedTimer = useRef(null);
 
   // ---------- Stato del salvataggio ----------
   const [saving, setSaving] = useState(false);
@@ -387,6 +390,33 @@ export default function InvoiceForm({ invoiceId = null }) {
   function removeLine(key) {
     setLines((current) => current.filter((line) => line.key !== key));
   }
+
+  // Sposta una riga di un posto: direction = -1 (su) oppure +1 (giù).
+  // Serve, ad esempio, dopo "Copy last invoice" se questa settimana
+  // l'ordine degli assistiti è cambiato. L'ordine si salva con la fattura
+  // (colonna "position"), quindi anche il PDF segue il nuovo ordine.
+  function moveLine(key, direction) {
+    setLines((current) => {
+      const from = current.findIndex((line) => line.key === key);
+      const to = from + direction;
+      if (from < 0 || to < 0 || to >= current.length) return current; // già in cima / in fondo
+      const copy = [...current];
+      [copy[from], copy[to]] = [copy[to], copy[from]]; // scambia le due righe
+      return copy;
+    });
+    // breve evidenziazione della riga spostata, come per quelle aggiunte
+    setMovedKey(key);
+    clearTimeout(movedTimer.current);
+    movedTimer.current = setTimeout(() => setMovedKey(null), ADDED_FEEDBACK_MS);
+  }
+
+  // Dopo lo spostamento la riga resta visibile (la pagina scorre solo se serve)
+  useEffect(() => {
+    if (!movedKey) return;
+    document.getElementById(`line-${movedKey}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [movedKey, lines]);
+
+  useEffect(() => () => clearTimeout(movedTimer.current), []);
 
   // Chiede a Supabase la tariffa giusta (assistito → cliente → base)
   async function applyRate(key, recipientId, serviceId) {
@@ -883,18 +913,41 @@ export default function InvoiceForm({ invoiceId = null }) {
               key={line.key}
               id={`line-${line.key}`}
               className={`grid scroll-mt-4 gap-3 border-t border-gray-100 px-4 py-4 transition-[background-color,box-shadow] duration-700 first:border-t-0 sm:grid-cols-6 ${
-                // riga appena aggiunta: sfondo celeste + barra blu a sinistra
+                // riga appena aggiunta o spostata: sfondo celeste + barra blu a sinistra
                 // (la barra è un'ombra interna: non sposta il contenuto)
-                line.key === justAddedKey ? "bg-sky-100 shadow-[inset_4px_0_0_var(--color-sky-500)]" : ""
+                line.key === justAddedKey || line.key === movedKey ? "bg-sky-100 shadow-[inset_4px_0_0_var(--color-sky-500)]" : ""
               }`}
             >
               <div className="flex items-center justify-between sm:col-span-6">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Line {index + 1} · {line.item_type}
                 </span>
-                <button type="button" onClick={() => removeLine(line.key)} className="text-sm text-red-600 hover:underline">
-                  Remove
-                </button>
+                <div className="flex items-center gap-1">
+                  {/* sposta la riga su o giù di un posto */}
+                  <button
+                    type="button"
+                    onClick={() => moveLine(line.key, -1)}
+                    disabled={index === 0}
+                    title="Move up"
+                    aria-label={`Move line ${index + 1} up`}
+                    className="rounded-md border border-gray-300 px-2 py-0.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveLine(line.key, 1)}
+                    disabled={index === lines.length - 1}
+                    title="Move down"
+                    aria-label={`Move line ${index + 1} down`}
+                    className="rounded-md border border-gray-300 px-2 py-0.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    ↓
+                  </button>
+                  <button type="button" onClick={() => removeLine(line.key)} className="ml-2 text-sm text-red-600 hover:underline">
+                    Remove
+                  </button>
+                </div>
               </div>
 
               <label className="block sm:col-span-2">
